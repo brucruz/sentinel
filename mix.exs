@@ -23,7 +23,8 @@ defmodule Sentinel.MixProject do
     [
       {:finch, "~> 0.19"},
       {:jason, "~> 1.4"},
-      {:ex_gram, "~> 0.55"}
+      {:ex_gram, "~> 0.55"},
+      {:dotenvy, "~> 0.8"}
     ]
   end
 

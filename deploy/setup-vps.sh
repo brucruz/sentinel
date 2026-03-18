@@ -1,6 +1,9 @@
 #!/bin/bash
 # Prepare VPS for Sentinel deploys. Safe to rerun (idempotent).
-# Usage: ssh user@your-vps 'bash -s' < deploy/setup-vps.sh
+#
+# Usage:
+#   scp .env user@your-vps:/tmp/sentinel.env
+#   ssh user@your-vps 'bash -s' < deploy/setup-vps.sh
 
 set -euo pipefail
 
@@ -18,16 +21,17 @@ sudo chown sentinel:docker /opt/sentinel
 echo "==> NOTE: The systemd service file is deployed by CI (deploy/sentinel.service)."
 echo "    On first setup, CI will copy it to /etc/systemd/system/sentinel.service"
 
-echo "==> Creating env file template..."
-if [ ! -f /etc/sentinel/env ]; then
-  sudo tee /etc/sentinel/env > /dev/null << 'EOF'
-SENTINEL_TELEGRAM_TOKEN=your-bot-token-here
-SENTINEL_CHAT_ID=your-chat-id-here
-EOF
+echo "==> Setting up env file..."
+if [ -f /tmp/sentinel.env ]; then
+  sudo mv /tmp/sentinel.env /etc/sentinel/env
   sudo chmod 600 /etc/sentinel/env
-  echo "    IMPORTANT: Edit /etc/sentinel/env with your Telegram credentials"
-else
+  echo "    Installed from /tmp/sentinel.env"
+elif [ -f /etc/sentinel/env ]; then
   echo "    /etc/sentinel/env already exists, skipping"
+else
+  echo "    WARNING: No env file found. Either:"
+  echo "      - scp .env user@your-vps:/tmp/sentinel.env (before running this script)"
+  echo "      - Or create /etc/sentinel/env manually"
 fi
 
 echo "==> Enabling service..."
@@ -41,7 +45,5 @@ fi
 echo ""
 echo "==> Setup complete!"
 echo "    Next steps:"
-echo "    1. Edit /etc/sentinel/env with your Telegram bot token and chat ID"
-echo "    2. Deploy the release to /opt/sentinel/"
-echo "    3. Start with: sudo systemctl start sentinel"
-echo "    4. Check logs: sudo journalctl -u sentinel -f"
+echo "    1. Push to main to trigger CI deploy"
+echo "    2. Check logs: sudo journalctl -u sentinel -f"
