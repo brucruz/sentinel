@@ -1,0 +1,62 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get --only prod
+
+      - name: Build release
+        env:
+          MIX_ENV: prod
+        run: mix release
+
+      - name: Deploy to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
+
+          # Copy release to VPS
+          rsync -az --delete \
+            -e "ssh $SSH_OPTS" \
+            _build/prod/rel/sentinel/ \
+            "$VPS_USER@$VPS_HOST:/opt/sentinel/"
+
+          # Update systemd service file and restart
+          scp $SSH_OPTS deploy/sentinel.service "$VPS_USER@$VPS_HOST:/tmp/sentinel.service"
+          ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
+            "sudo mv /tmp/sentinel.service /etc/systemd/system/sentinel.service && \
+             sudo systemctl daemon-reload && \
+             sudo systemctl enable sentinel && \
+             sudo systemctl restart sentinel"
