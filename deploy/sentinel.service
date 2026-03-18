@@ -1,0 +1,16 @@
+[Unit]
+Description=Sentinel VPS Monitor
+After=network.target docker.service
+
+[Service]
+Type=exec
+User=sentinel
+Group=docker
+EnvironmentFile=/etc/sentinel/env
+ExecStart=/opt/sentinel/bin/sentinel start
+ExecStop=/opt/sentinel/bin/sentinel stop
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
