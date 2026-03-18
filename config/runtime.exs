@@ -3,10 +3,14 @@ import Dotenvy
 
 # In dev/test, load from .env file. In prod, systemd provides env vars via EnvironmentFile.
 # System.get_env() is always included so real env vars take precedence.
-source!([
-  if(config_env() in [:dev, :test], do: ".env"),
-  System.get_env()
-])
+sources =
+  if config_env() in [:dev, :test] do
+    [".env", System.get_env()]
+  else
+    [System.get_env()]
+  end
+
+source!(sources)
 
 config :sentinel,
   telegram_bot_token: env!("SENTINEL_TELEGRAM_TOKEN", :string!),
