@@ -45,16 +45,20 @@ jobs:
 
           SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
 
+          # Stop service before deploying new files
+          ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
+            "sudo systemctl stop sentinel || true"
+
           # Copy release to VPS
           rsync -az --delete \
             -e "ssh $SSH_OPTS" \
             _build/prod/rel/sentinel/ \
             "$VPS_USER@$VPS_HOST:/opt/sentinel/"
 
-          # Update systemd service file and restart
+          # Update systemd service file and start
           scp $SSH_OPTS deploy/sentinel.service "$VPS_USER@$VPS_HOST:/tmp/sentinel.service"
           ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
             "sudo mv /tmp/sentinel.service /etc/systemd/system/sentinel.service && \
              sudo systemctl daemon-reload && \
              sudo systemctl enable sentinel && \
-             sudo systemctl restart sentinel"
+             sudo systemctl start sentinel"
