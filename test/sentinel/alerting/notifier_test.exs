@@ -11,7 +11,7 @@ defmodule Sentinel.Alerting.NotifierTest do
       {:ok, body, conn} = Plug.Conn.read_body(conn)
       payload = Jason.decode!(body)
 
-      assert payload["chat_id"] == "test-chat-id"
+      assert payload["chat_id"] == "123456"
       assert payload["text"] == "Hello!"
       assert payload["parse_mode"] == "HTML"
 

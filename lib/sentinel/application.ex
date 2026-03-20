@@ -17,10 +17,12 @@ defmodule Sentinel.Application do
             id: :startup_message,
             start: {Task, :start_link, [&startup_message/0]},
             restart: :temporary
-          }
+          },
           # Milestone 3: Sentinel.Evaluator
           # Milestone 3: Sentinel.Alerting.Supervisor
-          # Milestone 4: ExGram, Sentinel.Telegram.Bot
+          ExGram,
+          {Sentinel.Telegram.Bot,
+           [method: :polling, token: Sentinel.Config.telegram_bot_token()]}
         ]
       else
         [{Finch, name: Sentinel.Finch}]

@@ -4,7 +4,12 @@ config :logger, level: :warning
 
 config :sentinel,
   telegram_bot_token: "test-token",
-  telegram_chat_id: "test-chat-id",
+  telegram_chat_id: "123456",
   proc_base_path: "test/fixtures/proc",
   poll_intervals: %{system: :infinity, disk: :infinity, docker: :infinity, evaluator: :infinity},
   start_on_boot: false
+
+config :ex_gram,
+  token: "test-token",
+  adapter: ExGram.Adapter.Test,
+  updates: ExGram.Updates.Test
