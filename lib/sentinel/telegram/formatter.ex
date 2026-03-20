@@ -20,8 +20,9 @@ defmodule Sentinel.Telegram.Formatter do
     disk_lines =
       Enum.map_join(disk_entries, "\n", fn e ->
         bar = progress_bar(e.percent)
-
-        "#{bar} #{pad_right("#{e.percent}%", 4)}  #{pad_right(e.mount, 10)}  #{format_kb(e.used_kb)}/#{format_kb(e.total_kb)}"
+        name = truncate(e.mount, 12)
+        size = "#{format_kb(e.used_kb)}/#{format_kb(e.total_kb)}"
+        "#{bar} #{pad_right("#{e.percent}%", 4)} #{pad_right(name, 12)} #{size}"
       end)
 
     disk_section = if disk_lines == "", do: "No disks found", else: disk_lines
@@ -62,6 +63,14 @@ defmodule Sentinel.Telegram.Formatter do
     filled = round(percent / 10)
     empty = 10 - filled
     "[#{String.duplicate("#", filled)}#{String.duplicate("-", empty)}]"
+  end
+
+  defp truncate(str, max_len) do
+    if String.length(str) > max_len do
+      String.slice(str, 0, max_len - 1) <> "~"
+    else
+      str
+    end
   end
 
   defp pad_right(str, len) do
