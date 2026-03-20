@@ -23,6 +23,8 @@ defmodule Sentinel.Config do
     |> Map.get(collector, Map.fetch!(defaults, collector))
   end
 
+  def proc_base_path, do: Application.get_env(:sentinel, :proc_base_path, "/proc")
+
   def thresholds do
     Application.get_env(:sentinel, :thresholds, [])
   end

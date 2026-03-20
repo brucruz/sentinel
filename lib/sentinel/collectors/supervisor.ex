@@ -14,8 +14,8 @@ defmodule Sentinel.Collectors.Supervisor do
   @impl true
   def init(_init_arg) do
     children = [
-      # Milestone 2: Sentinel.Collectors.System
-      # Milestone 2: Sentinel.Collectors.Disk
+      Sentinel.Collectors.System,
+      Sentinel.Collectors.Disk
       # Milestone 3: Sentinel.Collectors.Docker
     ]
 

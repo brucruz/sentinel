@@ -13,7 +13,12 @@ sources =
 source!(sources)
 
 config :sentinel,
-  telegram_bot_token: env!("SENTINEL_TELEGRAM_TOKEN", :string!),
-  telegram_chat_id: env!("SENTINEL_CHAT_ID", :string!),
   docker_socket: env!("SENTINEL_DOCKER_SOCKET", :string, "/var/run/docker.sock"),
   cooldown_minutes: env!("SENTINEL_COOLDOWN_MINUTES", :integer, 15)
+
+if config_env() != :test do
+  config :sentinel,
+    telegram_bot_token: env!("SENTINEL_TELEGRAM_TOKEN", :string!),
+    telegram_chat_id: env!("SENTINEL_CHAT_ID", :string!),
+    proc_base_path: "/proc"
+end
