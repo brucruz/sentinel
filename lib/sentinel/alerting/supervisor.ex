@@ -12,8 +12,7 @@ defmodule Sentinel.Alerting.Supervisor do
   @impl true
   def init(_init_arg) do
     children = [
-      # Milestone 3: Sentinel.Alerting.Cooldown
-      # Milestone 3: Sentinel.Alerting.Notifier
+      Sentinel.Alerting.Cooldown
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

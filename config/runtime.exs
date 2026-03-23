@@ -13,7 +13,7 @@ sources =
 source!(sources)
 
 config :sentinel,
-  docker_socket: env!("SENTINEL_DOCKER_SOCKET", :string, "/var/run/docker.sock"),
+  docker_socket: env!("SENTINEL_DOCKER_SOCKET", :string, nil),
   cooldown_minutes: env!("SENTINEL_COOLDOWN_MINUTES", :integer, 15)
 
 if config_env() != :test do

@@ -15,8 +15,8 @@ defmodule Sentinel.Collectors.Supervisor do
   def init(_init_arg) do
     children = [
       Sentinel.Collectors.System,
-      Sentinel.Collectors.Disk
-      # Milestone 3: Sentinel.Collectors.Docker
+      Sentinel.Collectors.Disk,
+      Sentinel.Collectors.Docker
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

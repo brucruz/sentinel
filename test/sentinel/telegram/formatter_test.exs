@@ -115,4 +115,18 @@ defmodule Sentinel.Telegram.FormatterTest do
       assert msg =~ "<b>Sentinel Commands</b>"
     end
   end
+
+  describe "alert_message/2" do
+    test "formats warning alert" do
+      msg = Formatter.alert_message(:warning, "CPU at 95.0% (threshold: 90%)")
+      assert msg =~ "<b>[WARNING] Alert</b>"
+      assert msg =~ "CPU at 95.0%"
+    end
+
+    test "formats critical alert" do
+      msg = Formatter.alert_message(:critical, "Container <b>redis</b> is exited")
+      assert msg =~ "<b>[CRITICAL] Alert</b>"
+      assert msg =~ "redis"
+    end
+  end
 end

@@ -7,6 +7,9 @@ config :sentinel,
   telegram_chat_id: "123456",
   proc_base_path: "test/fixtures/proc",
   poll_intervals: %{system: :infinity, disk: :infinity, docker: :infinity, evaluator: :infinity},
+  docker_client: Sentinel.Docker.ClientMock,
+  system_backend: Sentinel.Collectors.System.Linux,
+  thresholds: [],
   start_on_boot: false
 
 config :ex_gram,

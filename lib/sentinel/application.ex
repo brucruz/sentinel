@@ -18,8 +18,8 @@ defmodule Sentinel.Application do
             start: {Task, :start_link, [&startup_message/0]},
             restart: :temporary
           },
-          # Milestone 3: Sentinel.Evaluator
-          # Milestone 3: Sentinel.Alerting.Supervisor
+          Sentinel.Alerting.Supervisor,
+          Sentinel.Evaluator,
           ExGram,
           {Sentinel.Telegram.Bot,
            [method: :polling, token: Sentinel.Config.telegram_bot_token()]}
@@ -35,6 +35,7 @@ defmodule Sentinel.Application do
   defp startup_message do
     Sentinel.Collectors.System.collect()
     Sentinel.Collectors.Disk.collect()
+    Sentinel.Collectors.Docker.collect()
 
     case Sentinel.Alerting.Notifier.check_connectivity() do
       :ok ->

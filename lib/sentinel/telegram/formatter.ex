@@ -70,6 +70,17 @@ defmodule Sentinel.Telegram.Formatter do
     |> String.trim()
   end
 
+  def alert_message(severity, details) do
+    label = severity |> to_string() |> String.upcase()
+
+    """
+    <b>[#{label}] Alert</b>
+
+    #{details}
+    """
+    |> String.trim()
+  end
+
   # Shared formatting
 
   defp format_system_and_disk(snapshot) do
