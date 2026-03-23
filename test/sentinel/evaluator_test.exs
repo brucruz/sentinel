@@ -85,7 +85,7 @@ defmodule Sentinel.EvaluatorTest do
   end
 
   describe "check_threshold/2 — docker container stopped" do
-    test "triggers for each stopped container" do
+    test "triggers for stopped containers with no running sibling" do
       snapshot = %{
         docker: %{
           containers: {
@@ -109,6 +109,49 @@ defmodule Sentinel.EvaluatorTest do
       assert "redis" in names
       assert "worker" in names
       assert Enum.all?(alerts, &(&1.severity == :critical))
+    end
+
+    test "skips old Kamal releases when a newer version is running" do
+      snapshot = %{
+        docker: %{
+          containers: {
+            [
+              %{name: "myapp-web-aaa111bbb222ccc333", state: "running", status: "Up 1h"},
+              %{name: "myapp-web-ddd444eee555fff666", state: "exited", status: "Exited (255) 40h ago"},
+              %{name: "myapp-web-777888999aaabbbccc", state: "exited", status: "Exited (1) 42h ago"}
+            ],
+            1_000
+          }
+        }
+      }
+
+      alerts = Sentinel.Evaluator.check_threshold(
+        {:docker, :container_stopped, :any, nil, :critical},
+        snapshot
+      )
+
+      assert alerts == []
+    end
+
+    test "alerts when all versions of a Kamal service are stopped" do
+      snapshot = %{
+        docker: %{
+          containers: {
+            [
+              %{name: "myapp-web-aaa111bbb222ccc333", state: "exited", status: "Exited (255) 5m ago"},
+              %{name: "myapp-web-ddd444eee555fff666", state: "exited", status: "Exited (255) 1h ago"}
+            ],
+            1_000
+          }
+        }
+      }
+
+      alerts = Sentinel.Evaluator.check_threshold(
+        {:docker, :container_stopped, :any, nil, :critical},
+        snapshot
+      )
+
+      assert length(alerts) == 2
     end
 
     test "does not trigger when all containers are running" do

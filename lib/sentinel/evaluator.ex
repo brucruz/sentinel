@@ -110,8 +110,14 @@ defmodule Sentinel.Evaluator do
 
     case Map.get(docker, :containers) do
       {containers, _ts} when is_list(containers) ->
+        running_prefixes =
+          containers
+          |> Enum.filter(&(&1.state == "running"))
+          |> MapSet.new(&service_prefix(&1.name))
+
         containers
         |> Enum.reject(&(&1.state == "running"))
+        |> Enum.reject(&MapSet.member?(running_prefixes, service_prefix(&1.name)))
         |> Enum.map(fn c ->
           %{key: {:docker, :container_stopped, c.name}, severity: severity,
             message: "Container <b>#{c.name}</b> is #{c.state} (#{c.status})"}
@@ -159,6 +165,16 @@ defmodule Sentinel.Evaluator do
   end
 
   defp interval, do: Sentinel.Config.poll_interval(:evaluator)
+
+  # Strips trailing hex hash (12+ chars) from container names to get the service prefix.
+  # e.g., "global_dial-web-82200684be7ccd32f9de..." → "global_dial-web"
+  # Non-matching names (e.g., "redis") are returned as-is.
+  defp service_prefix(name) do
+    case Regex.run(~r/^(.+)-[0-9a-f]{12,}$/, name) do
+      [_, prefix] -> prefix
+      nil -> name
+    end
+  end
 
   defp schedule(:infinity), do: :ok
   defp schedule(ms), do: Process.send_after(self(), :evaluate, ms)
