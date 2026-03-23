@@ -5,6 +5,8 @@ defmodule Sentinel.Telegram.Formatter do
 
   def startup_message(snapshot) do
     {sys_section, disk_section} = format_system_and_disk(snapshot)
+    docker = Map.get(snapshot, :docker, %{})
+    container_summary = format_container_summary(docker)
 
     """
     <b>Sentinel Started</b>
@@ -14,6 +16,9 @@ defmodule Sentinel.Telegram.Formatter do
 
     Disk
     #{disk_section}
+
+    Containers
+    #{container_summary}
     </pre>
     """
     |> dedent()
@@ -21,6 +26,8 @@ defmodule Sentinel.Telegram.Formatter do
 
   def status_message(snapshot) do
     {sys_section, disk_section} = format_system_and_disk(snapshot)
+    docker = Map.get(snapshot, :docker, %{})
+    container_summary = format_container_summary(docker)
 
     """
     <b>System Status</b>
@@ -30,6 +37,9 @@ defmodule Sentinel.Telegram.Formatter do
 
     Disk
     #{disk_section}
+
+    Containers
+    #{container_summary}
     </pre>
     """
     |> dedent()
@@ -59,12 +69,56 @@ defmodule Sentinel.Telegram.Formatter do
     |> String.trim()
   end
 
+  def containers_message(docker_metrics) do
+    containers = get_metric_value(docker_metrics, :containers, [])
+
+    if containers == [] do
+      """
+      <b>Containers</b>
+
+      No containers found.
+      """
+      |> String.trim()
+    else
+      lines =
+        containers
+        |> Enum.sort_by(& &1.name)
+        |> Enum.map_join("\n", fn c ->
+          stats = get_metric_value(docker_metrics, {:stats, c.name}, nil)
+          format_container_line(c, stats)
+        end)
+
+      """
+      <b>Containers</b>
+
+      <pre>
+      #{lines}
+      </pre>
+      """
+      |> dedent()
+    end
+  end
+
+  def container_detail_message(docker_metrics, name) do
+    containers = get_metric_value(docker_metrics, :containers, [])
+    container = Enum.find(containers, &(&1.name == name))
+
+    if container == nil do
+      "Container <b>#{name}</b> not found.\n\nSend /containers to see available containers."
+    else
+      stats = get_metric_value(docker_metrics, {:stats, name}, nil)
+      format_container_detail(container, stats)
+    end
+  end
+
   def help_message do
     """
     <b>Sentinel Commands</b>
 
-    /status — Full system overview (CPU, memory, load, disk)
+    /status — Full system overview
     /disk — Disk usage per mount point
+    /containers — List all containers
+    /container &lt;name&gt; — Detailed stats for one container
     /help — Show this message
     """
     |> String.trim()
@@ -124,6 +178,77 @@ defmodule Sentinel.Telegram.Formatter do
       end)
     end
   end
+
+  defp format_container_summary(docker) do
+    containers = get_metric_value(docker, :containers, [])
+
+    if containers == [] do
+      "No containers found"
+    else
+      running = Enum.count(containers, &(&1.state == "running"))
+      total = length(containers)
+      stopped = total - running
+
+      summary = "#{running} running"
+      summary = if stopped > 0, do: summary <> ", #{stopped} stopped", else: summary
+      summary
+    end
+  end
+
+  defp format_container_line(container, stats) do
+    icon = if container.state == "running", do: "●", else: "○"
+
+    if stats do
+      cpu = Float.round(stats.cpu_percent, 1)
+      mem = format_bytes(stats.memory_usage_bytes)
+      "#{icon} #{container.name}\n  #{container.state} · CPU #{cpu}% · MEM #{mem}"
+    else
+      "#{icon} #{container.name}\n  #{container.state}"
+    end
+  end
+
+  defp format_container_detail(container, stats) do
+    status_line = "State:   #{container.state}"
+    status_line2 = "Status:  #{container.status}"
+    image_line = "Image:   #{container.image}"
+
+    stats_section =
+      if stats do
+        cpu = Float.round(stats.cpu_percent, 1)
+        mem_used = format_bytes(stats.memory_usage_bytes)
+        mem_limit = format_bytes(stats.memory_limit_bytes)
+        mem_pct = Float.round(stats.memory_percent, 1)
+
+        """
+        CPU:     #{cpu}%
+        Memory:  #{mem_used} / #{mem_limit} (#{mem_pct}%)
+        """
+        |> String.trim()
+      else
+        "Stats:   not available (container not running)"
+      end
+
+    """
+    <b>Container: #{container.name}</b>
+
+    <pre>
+    #{status_line}
+    #{status_line2}
+    #{image_line}
+    #{stats_section}
+    </pre>
+    """
+    |> dedent()
+  end
+
+  defp format_bytes(bytes) when bytes >= 1_073_741_824,
+    do: "#{Float.round(bytes / 1_073_741_824, 1)} GB"
+
+  defp format_bytes(bytes) when bytes >= 1_048_576,
+    do: "#{Float.round(bytes / 1_048_576, 1)} MB"
+
+  defp format_bytes(bytes) when bytes >= 1024, do: "#{Float.round(bytes / 1024, 1)} KB"
+  defp format_bytes(bytes), do: "#{bytes} B"
 
   defp dedent(text) do
     text

@@ -19,7 +19,62 @@ defmodule Sentinel.Telegram.FormatterTest do
        System.monotonic_time()}
   }
 
+  @containers [
+    %{
+      id: "abc123",
+      name: "myapp-web",
+      image: "myapp:latest",
+      state: "running",
+      status: "Up 2 hours",
+      created: 1_700_000_000
+    },
+    %{
+      id: "def456",
+      name: "redis",
+      image: "redis:7-alpine",
+      state: "running",
+      status: "Up 2 hours",
+      created: 1_700_000_000
+    },
+    %{
+      id: "ghi789",
+      name: "old-worker",
+      image: "worker:old",
+      state: "exited",
+      status: "Exited (0) 3 hours ago",
+      created: 1_699_990_000
+    }
+  ]
+
+  @myapp_stats %{
+    cpu_percent: 12.5,
+    memory_usage_bytes: 104_857_600,
+    memory_limit_bytes: 1_073_741_824,
+    memory_percent: 9.8
+  }
+
+  @redis_stats %{
+    cpu_percent: 2.3,
+    memory_usage_bytes: 52_428_800,
+    memory_limit_bytes: 536_870_912,
+    memory_percent: 9.8
+  }
+
   @snapshot %{system: @system_metrics, disk: @disk_metrics}
+
+  defp docker_metrics do
+    ts = System.monotonic_time()
+
+    %{
+      :containers => {@containers, ts},
+      {:stats, "myapp-web"} => {@myapp_stats, ts},
+      {:stats, "redis"} => {@redis_stats, ts}
+    }
+  end
+
+  defp snapshot_with_docker do
+    Map.put(@snapshot, :docker, docker_metrics())
+  end
 
   describe "startup_message/1" do
     test "includes header" do
@@ -107,12 +162,84 @@ defmodule Sentinel.Telegram.FormatterTest do
       msg = Formatter.help_message()
       assert msg =~ "/status"
       assert msg =~ "/disk"
+      assert msg =~ "/containers"
+      assert msg =~ "/container"
       assert msg =~ "/help"
     end
 
     test "is valid HTML with header" do
       msg = Formatter.help_message()
       assert msg =~ "<b>Sentinel Commands</b>"
+    end
+  end
+
+  describe "status_message/1 with containers" do
+    test "includes container summary" do
+      msg = Formatter.status_message(snapshot_with_docker())
+      assert msg =~ "Containers"
+      assert msg =~ "2 running"
+      assert msg =~ "1 stopped"
+    end
+
+    test "handles snapshot without docker" do
+      msg = Formatter.status_message(@snapshot)
+      assert msg =~ "No containers found"
+    end
+  end
+
+  describe "containers_message/1" do
+    test "includes header" do
+      msg = Formatter.containers_message(docker_metrics())
+      assert msg =~ "<b>Containers</b>"
+    end
+
+    test "lists all containers with state" do
+      msg = Formatter.containers_message(docker_metrics())
+      assert msg =~ "myapp-web"
+      assert msg =~ "redis"
+      assert msg =~ "old-worker"
+    end
+
+    test "shows CPU and memory for running containers" do
+      msg = Formatter.containers_message(docker_metrics())
+      assert msg =~ "12.5%"
+      assert msg =~ "2.3%"
+    end
+
+    test "shows running indicator for running containers" do
+      msg = Formatter.containers_message(docker_metrics())
+      assert msg =~ "●"
+      assert msg =~ "○"
+    end
+
+    test "handles empty containers" do
+      msg = Formatter.containers_message(%{})
+      assert msg =~ "No containers found"
+    end
+  end
+
+  describe "container_detail_message/2" do
+    test "shows detailed stats for a running container" do
+      msg = Formatter.container_detail_message(docker_metrics(), "myapp-web")
+      assert msg =~ "<b>Container: myapp-web</b>"
+      assert msg =~ "running"
+      assert msg =~ "Up 2 hours"
+      assert msg =~ "myapp:latest"
+      assert msg =~ "12.5%"
+      assert msg =~ "100.0 MB"
+    end
+
+    test "shows not available for stopped container stats" do
+      msg = Formatter.container_detail_message(docker_metrics(), "old-worker")
+      assert msg =~ "old-worker"
+      assert msg =~ "exited"
+      assert msg =~ "not available"
+    end
+
+    test "returns not found for unknown container" do
+      msg = Formatter.container_detail_message(docker_metrics(), "nonexistent")
+      assert msg =~ "not found"
+      assert msg =~ "/containers"
     end
   end
 
