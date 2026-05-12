@@ -3,6 +3,7 @@ defmodule Sentinel.Collectors.SystemTest do
 
   setup do
     store = start_supervised!(Sentinel.MetricStore)
+    _history = start_supervised!(Sentinel.History)
     collector = start_supervised!(Sentinel.Collectors.System)
     %{store: store, collector: collector}
   end
@@ -33,6 +34,17 @@ defmodule Sentinel.Collectors.SystemTest do
     assert memory.available_kb == 4_020_000
     assert memory.used_kb == 4_032_444
     assert_in_delta memory.percent, 50.08, 0.1
+  end
+
+  test "memory includes swap fields from fixture" do
+    # Fixture: SwapTotal=2097148, SwapFree=2097148 -> swap_used=0, swap_percent=0.0
+    :ok = Sentinel.Collectors.System.collect()
+
+    {memory, _ts} = Sentinel.MetricStore.get(:system, :memory)
+    assert memory.swap_total_kb == 2_097_148
+    assert memory.swap_free_kb == 2_097_148
+    assert memory.swap_used_kb == 0
+    assert memory.swap_percent == 0.0
   end
 
   test "loadavg values match fixture" do

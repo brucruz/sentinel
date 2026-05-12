@@ -16,7 +16,8 @@ defmodule Sentinel.Collectors.System.Linux do
 
   @doc """
   Reads memory info from /proc/meminfo.
-  Returns `%{total_kb, available_kb, used_kb, percent}`.
+  Returns `%{total_kb, available_kb, used_kb, percent, swap_total_kb,
+  swap_free_kb, swap_used_kb, swap_percent}`.
   """
   def read_memory do
     proc_base = Sentinel.Config.proc_base_path()
@@ -28,7 +29,21 @@ defmodule Sentinel.Collectors.System.Linux do
     used = total - available
     percent = if total == 0, do: 0.0, else: used / total * 100.0
 
-    %{total_kb: total, available_kb: available, used_kb: used, percent: percent}
+    swap_total = Map.get(values, "SwapTotal", 0)
+    swap_free = Map.get(values, "SwapFree", 0)
+    swap_used = swap_total - swap_free
+    swap_percent = if swap_total == 0, do: 0.0, else: swap_used / swap_total * 100.0
+
+    %{
+      total_kb: total,
+      available_kb: available,
+      used_kb: used,
+      percent: percent,
+      swap_total_kb: swap_total,
+      swap_free_kb: swap_free,
+      swap_used_kb: swap_used,
+      swap_percent: swap_percent
+    }
   end
 
   @doc """

@@ -72,6 +72,13 @@ defmodule Sentinel.Collectors.System do
     Sentinel.MetricStore.put(:system, :memory, memory)
     Sentinel.MetricStore.put(:system, :loadavg, loadavg)
 
+    Sentinel.History.put(
+      cpu_reading.percent,
+      memory.percent,
+      memory.swap_percent,
+      loadavg.load1
+    )
+
     %{state | prev_cpu: cpu_reading.raw}
   end
 

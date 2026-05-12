@@ -119,9 +119,44 @@ defmodule Sentinel.Telegram.Formatter do
     /disk — Disk usage per mount point
     /containers — List all containers
     /container &lt;name&gt; — Detailed stats for one container
+    /peak &lt;duration&gt; — Peak CPU/MEM/SWAP over a window (e.g. 24h, 30m)
+    /since &lt;timestamp&gt; — Peak CPU/MEM/SWAP since ISO 8601 timestamp
     /help — Show this message
     """
     |> String.trim()
+  end
+
+  def peak_message(label, nil) do
+    """
+    <b>Peak — #{label}</b>
+
+    No samples in range yet.
+    """
+    |> String.trim()
+  end
+
+  def peak_message(label, %{cpu: cpu, mem: mem, swap: swap, load1: load1}) do
+    lines = [
+      "CPU   #{pad_left("#{Float.round(cpu.value * 1.0, 1)}%", 6)}  at #{format_ts(cpu.ts)}",
+      "MEM   #{pad_left("#{Float.round(mem.value * 1.0, 1)}%", 6)}  at #{format_ts(mem.ts)}",
+      "SWAP  #{pad_left("#{Float.round(swap.value * 1.0, 1)}%", 6)}  at #{format_ts(swap.ts)}",
+      "LOAD  #{pad_left(Float.to_string(Float.round(load1.value * 1.0, 2)), 6)}  at #{format_ts(load1.ts)}"
+    ]
+
+    """
+    <b>Peak — #{label}</b>
+
+    <pre>
+    #{Enum.join(lines, "\n")}
+    </pre>
+    """
+    |> dedent()
+  end
+
+  defp format_ts(nil), do: "-"
+
+  defp format_ts(ts) when is_integer(ts) do
+    ts |> DateTime.from_unix!() |> DateTime.to_iso8601()
   end
 
   def alert_message(severity, details) do

@@ -5,14 +5,21 @@ defmodule Sentinel.Telegram.BotTest do
   alias Sentinel.MetricStore
 
   setup context do
-    # Start MetricStore for this test
+    # Start MetricStore and History for this test
     start_supervised!(MetricStore)
+    start_supervised!(Sentinel.History)
 
     # Seed metrics so commands have data to format
     MetricStore.put(:system, :cpu_percent, 25.0)
     MetricStore.put(:system, :memory, %{percent: 50.0, used_kb: 2_097_152, total_kb: 4_194_304})
     MetricStore.put(:system, :loadavg, %{load1: 0.5, load5: 0.4, load15: 0.3})
-    MetricStore.put(:disk, "/", %{mount: "/", percent: 40, used_kb: 20_971_520, total_kb: 52_428_800})
+
+    MetricStore.put(:disk, "/", %{
+      mount: "/",
+      percent: 40,
+      used_kb: 20_971_520,
+      total_kb: 52_428_800
+    })
 
     MetricStore.put(:docker, :containers, [
       %{
@@ -102,6 +109,8 @@ defmodule Sentinel.Telegram.BotTest do
         assert body[:text] =~ "/disk"
         assert body[:text] =~ "/containers"
         assert body[:text] =~ "/container"
+        assert body[:text] =~ "/peak"
+        assert body[:text] =~ "/since"
         assert body[:text] =~ "/help"
         {:ok, %{message_id: 1}}
       end)
@@ -171,6 +180,127 @@ defmodule Sentinel.Telegram.BotTest do
 
       ExGram.Test.push_update(bot_name, make_update("/container nonexistent"))
       ExGram.Test.verify!()
+    end
+  end
+
+  describe "/peak" do
+    test "responds with no samples message when history is empty", %{bot_name: bot_name} do
+      ExGram.Test.expect(:send_message, fn body ->
+        assert body[:text] =~ "Peak"
+        assert body[:text] =~ "24h"
+        assert body[:text] =~ "No samples"
+        {:ok, %{message_id: 1}}
+      end)
+
+      ExGram.Test.push_update(bot_name, make_update("/peak 24h"))
+      ExGram.Test.verify!()
+    end
+
+    test "responds with peak values when history has samples", %{bot_name: bot_name} do
+      now = System.system_time(:second)
+      :ok = Sentinel.History.put(80.0, 50.0, 5.0, 1.2, now - 10)
+      :ok = Sentinel.History.put(40.0, 90.0, 25.0, 0.4, now - 5)
+
+      ExGram.Test.expect(:send_message, fn body ->
+        assert body[:text] =~ "Peak"
+        assert body[:text] =~ "1h"
+        assert body[:text] =~ "80.0%"
+        assert body[:text] =~ "90.0%"
+        assert body[:text] =~ "25.0%"
+        {:ok, %{message_id: 1}}
+      end)
+
+      ExGram.Test.push_update(bot_name, make_update("/peak 1h"))
+      ExGram.Test.verify!()
+    end
+
+    test "defaults to 24h when no argument given", %{bot_name: bot_name} do
+      ExGram.Test.expect(:send_message, fn body ->
+        assert body[:text] =~ "24h"
+        {:ok, %{message_id: 1}}
+      end)
+
+      ExGram.Test.push_update(bot_name, make_update("/peak"))
+      ExGram.Test.verify!()
+    end
+
+    test "responds with usage on bad duration", %{bot_name: bot_name} do
+      ExGram.Test.expect(:send_message, fn body ->
+        assert body[:text] =~ "Usage"
+        {:ok, %{message_id: 1}}
+      end)
+
+      ExGram.Test.push_update(bot_name, make_update("/peak garbage"))
+      ExGram.Test.verify!()
+    end
+  end
+
+  describe "/since" do
+    test "responds with peak values since given ISO 8601 timestamp", %{bot_name: bot_name} do
+      now = System.system_time(:second)
+      :ok = Sentinel.History.put(55.0, 30.0, 2.0, 0.3, now - 30)
+
+      iso = now |> DateTime.from_unix!() |> DateTime.add(-60, :second) |> DateTime.to_iso8601()
+
+      ExGram.Test.expect(:send_message, fn body ->
+        assert body[:text] =~ "Peak"
+        assert body[:text] =~ "since"
+        assert body[:text] =~ "55.0%"
+        {:ok, %{message_id: 1}}
+      end)
+
+      ExGram.Test.push_update(bot_name, make_update("/since #{iso}"))
+      ExGram.Test.verify!()
+    end
+
+    test "responds with usage when no timestamp given", %{bot_name: bot_name} do
+      ExGram.Test.expect(:send_message, fn body ->
+        assert body[:text] =~ "Usage"
+        {:ok, %{message_id: 1}}
+      end)
+
+      ExGram.Test.push_update(bot_name, make_update("/since"))
+      ExGram.Test.verify!()
+    end
+
+    test "responds with usage on unparseable timestamp", %{bot_name: bot_name} do
+      ExGram.Test.expect(:send_message, fn body ->
+        assert body[:text] =~ "Usage"
+        {:ok, %{message_id: 1}}
+      end)
+
+      ExGram.Test.push_update(bot_name, make_update("/since not-a-date"))
+      ExGram.Test.verify!()
+    end
+  end
+
+  describe "parse_duration/1" do
+    test "parses h/m/s/d suffixes" do
+      assert {:ok, 86_400, "24h"} = Sentinel.Telegram.Bot.parse_duration("24h")
+      assert {:ok, 1800, "30m"} = Sentinel.Telegram.Bot.parse_duration("30m")
+      assert {:ok, 45, "45s"} = Sentinel.Telegram.Bot.parse_duration("45s")
+      assert {:ok, 86_400, "1d"} = Sentinel.Telegram.Bot.parse_duration("1d")
+    end
+
+    test "defaults to 24h on empty string" do
+      assert {:ok, 86_400, "24h"} = Sentinel.Telegram.Bot.parse_duration("")
+    end
+
+    test "returns :error on invalid input" do
+      assert :error = Sentinel.Telegram.Bot.parse_duration("garbage")
+      assert :error = Sentinel.Telegram.Bot.parse_duration("24x")
+    end
+  end
+
+  describe "parse_since/1" do
+    test "parses ISO 8601 with timezone" do
+      assert {:ok, ts, _label} = Sentinel.Telegram.Bot.parse_since("2026-05-12T05:00:00Z")
+      assert is_integer(ts)
+    end
+
+    test "returns :error on bad input" do
+      assert :error = Sentinel.Telegram.Bot.parse_since("not-a-date")
+      assert :error = Sentinel.Telegram.Bot.parse_since("")
     end
   end
 

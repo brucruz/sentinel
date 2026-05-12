@@ -12,6 +12,7 @@ defmodule Sentinel.Application do
         [
           {Finch, name: Sentinel.Finch},
           Sentinel.MetricStore,
+          Sentinel.History,
           Sentinel.Collectors.Supervisor,
           %{
             id: :startup_message,
@@ -21,8 +22,7 @@ defmodule Sentinel.Application do
           Sentinel.Alerting.Supervisor,
           Sentinel.Evaluator,
           ExGram,
-          {Sentinel.Telegram.Bot,
-           [method: :polling, token: Sentinel.Config.telegram_bot_token()]}
+          {Sentinel.Telegram.Bot, [method: :polling, token: Sentinel.Config.telegram_bot_token()]}
         ]
       else
         [{Finch, name: Sentinel.Finch}]

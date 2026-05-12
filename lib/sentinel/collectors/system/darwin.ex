@@ -45,7 +45,45 @@ defmodule Sentinel.Collectors.System.Darwin do
     used_kb = total_kb - available_kb
     percent = if total_kb == 0, do: 0.0, else: used_kb / total_kb * 100.0
 
-    %{total_kb: total_kb, available_kb: available_kb, used_kb: used_kb, percent: percent}
+    {swap_total_kb, swap_used_kb, swap_free_kb, swap_percent} = read_swap()
+
+    %{
+      total_kb: total_kb,
+      available_kb: available_kb,
+      used_kb: used_kb,
+      percent: percent,
+      swap_total_kb: swap_total_kb,
+      swap_free_kb: swap_free_kb,
+      swap_used_kb: swap_used_kb,
+      swap_percent: swap_percent
+    }
+  end
+
+  defp read_swap do
+    case System.cmd("sysctl", ["-n", "vm.swapusage"]) do
+      {output, 0} ->
+        # "total = 2048.00M  used = 512.00M  free = 1536.00M  (encrypted)"
+        total_mb = parse_swap_field(output, "total")
+        used_mb = parse_swap_field(output, "used")
+        free_mb = parse_swap_field(output, "free")
+
+        total_kb = round(total_mb * 1024)
+        used_kb = round(used_mb * 1024)
+        free_kb = round(free_mb * 1024)
+        percent = if total_kb == 0, do: 0.0, else: used_kb / total_kb * 100.0
+
+        {total_kb, used_kb, free_kb, percent}
+
+      _ ->
+        {0, 0, 0, 0.0}
+    end
+  end
+
+  defp parse_swap_field(output, field) do
+    case Regex.run(~r/#{field}\s*=\s*([\d.]+)M/, output) do
+      [_, val] -> parse_float(val)
+      nil -> 0.0
+    end
   end
 
   @doc """
