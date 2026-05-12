@@ -304,6 +304,38 @@ defmodule Sentinel.Telegram.BotTest do
     end
   end
 
+  describe "bot_commands/0" do
+    test "returns a non-empty list of well-formed BotCommand structs" do
+      cmds = Sentinel.Telegram.Bot.bot_commands()
+
+      assert is_list(cmds)
+      assert cmds != []
+
+      Enum.each(cmds, fn cmd ->
+        assert %ExGram.Model.BotCommand{command: name, description: desc} = cmd
+        assert is_binary(name)
+        assert is_binary(desc)
+        assert String.length(name) <= 32
+        assert String.length(desc) <= 256
+        assert Regex.match?(~r/^[a-z0-9_]{1,32}$/, name)
+        assert desc != ""
+      end)
+    end
+
+    test "command names are unique" do
+      names = Enum.map(Sentinel.Telegram.Bot.bot_commands(), & &1.command)
+      assert names == Enum.uniq(names)
+    end
+
+    test "includes the commands the bot handles" do
+      names = Enum.map(Sentinel.Telegram.Bot.bot_commands(), & &1.command)
+
+      for expected <- ~w(start status disk containers container peak since help) do
+        assert expected in names
+      end
+    end
+  end
+
   describe "unknown command" do
     test "responds with help suggestion", %{bot_name: bot_name} do
       ExGram.Test.expect(:send_message, fn body ->

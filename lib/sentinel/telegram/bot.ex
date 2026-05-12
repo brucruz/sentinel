@@ -7,6 +7,8 @@ defmodule Sentinel.Telegram.Bot do
 
   use ExGram.Bot, name: :sentinel_bot
 
+  require Logger
+
   alias Sentinel.Telegram.Formatter
 
   command("start", description: "Welcome message")
@@ -22,6 +24,57 @@ defmodule Sentinel.Telegram.Bot do
   middleware(Sentinel.Telegram.Middleware.AuthorizeChat)
 
   def bot_name, do: :sentinel_bot
+
+  @impl ExGram.Handler
+  def init(opts) do
+    if Application.get_env(:sentinel, :register_telegram_commands, true) do
+      register_commands(Keyword.get(opts, :token))
+    end
+
+    :ok
+  end
+
+  @doc """
+  Build the `setMyCommands` payload from this module's `command/2` declarations.
+
+  Returns a list of `ExGram.Model.BotCommand` structs — one per command that has a
+  `:description` opt. Skips entries without a description so the Telegram API never
+  sees a blank menu item.
+  """
+  def bot_commands do
+    for entry <- commands(),
+        desc = get_in(entry, [:opts, :description]),
+        is_binary(desc) and desc != "" do
+      %ExGram.Model.BotCommand{command: entry[:command], description: desc}
+    end
+  end
+
+  defp register_commands(nil) do
+    Logger.warning("Skipping Telegram setMyCommands: no token available")
+    :ok
+  end
+
+  defp register_commands(token) do
+    cmds = bot_commands()
+
+    case ExGram.set_my_commands(cmds, token: token) do
+      {:ok, true} ->
+        Logger.info("Registered #{length(cmds)} Telegram bot commands")
+        :ok
+
+      {:ok, other} ->
+        Logger.warning("Telegram setMyCommands returned unexpected payload: #{inspect(other)}")
+        :ok
+
+      {:error, error} ->
+        Logger.warning("Telegram setMyCommands failed: #{inspect(error)}")
+        :ok
+    end
+  rescue
+    e ->
+      Logger.warning("Telegram setMyCommands crashed: #{Exception.message(e)}")
+      :ok
+  end
 
   @impl ExGram.Handler
   def handle({:command, :start, _msg}, cnt) do

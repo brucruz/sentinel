@@ -10,7 +10,8 @@ config :sentinel,
   docker_client: Sentinel.Docker.ClientMock,
   system_backend: Sentinel.Collectors.System.Linux,
   thresholds: [],
-  start_on_boot: false
+  start_on_boot: false,
+  register_telegram_commands: false
 
 config :ex_gram,
   token: "test-token",
