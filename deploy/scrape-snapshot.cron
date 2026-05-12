@@ -1,0 +1,8 @@
+# Capture host + container metrics every minute during the lance-certo scrape
+# window (05:00-07:00 UTC). Cleanup old logs daily.
+# Installed at /etc/cron.d/scrape-snapshot.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+*/1 5-7 * * * sentinel /usr/local/bin/scrape-snapshot.sh
+0   4 *   * * sentinel find /var/log/scrape-monitor -maxdepth 1 -name "*.log" -mtime +14 -delete

@@ -62,3 +62,15 @@ jobs:
              sudo systemctl daemon-reload && \
              sudo systemctl enable sentinel && \
              sudo systemctl start sentinel"
+
+          # Install scrape-snapshot cron (temporary forensic capture during
+          # lance-certo scrape window — retire when S4 lands).
+          scp $SSH_OPTS scripts/scrape-snapshot.sh "$VPS_USER@$VPS_HOST:/tmp/scrape-snapshot.sh"
+          scp $SSH_OPTS deploy/scrape-snapshot.cron "$VPS_USER@$VPS_HOST:/tmp/scrape-snapshot.cron"
+          ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" \
+            "sudo install -m 755 -o root -g root /tmp/scrape-snapshot.sh /usr/local/bin/scrape-snapshot.sh && \
+             sudo install -m 644 -o root -g root /tmp/scrape-snapshot.cron /etc/cron.d/scrape-snapshot && \
+             sudo mkdir -p /var/log/scrape-monitor && \
+             sudo chown sentinel:docker /var/log/scrape-monitor && \
+             sudo chmod 755 /var/log/scrape-monitor && \
+             rm -f /tmp/scrape-snapshot.sh /tmp/scrape-snapshot.cron"
